@@ -1,0 +1,1938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Personal Color Analysis</title>
+  <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #faf8f5;
+      --surface: #ffffff;
+      --border: #e8e0d8;
+      --text: #2c2018;
+      --muted: #9a8878;
+      --radius: 16px;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    header {
+      text-align: center;
+      padding: 48px 24px 32px;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+    }
+
+    header h1 {
+      font-size: 1.9rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--text);
+    }
+
+    header p {
+      color: var(--muted);
+      margin-top: 6px;
+      font-size: 0.95rem;
+      max-width: 480px;
+      margin-inline: auto;
+      line-height: 1.5;
+    }
+
+    /* ── Main container ── */
+    .container {
+      max-width: 820px;
+      margin: 0 auto;
+      padding: 32px 20px 64px;
+    }
+
+    /* ── Upload card ── */
+    #upload-section { display: block; }
+    #results-section { display: none; }
+
+    .upload-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    #drop-zone {
+      position: relative;
+      padding: 64px 24px;
+      text-align: center;
+      cursor: pointer;
+      border: 2px dashed var(--border);
+      border-radius: var(--radius);
+      background: #fdf9f6;
+      transition: border-color 0.2s, background 0.2s;
+    }
+
+    #drop-zone:hover, #drop-zone.drag-over {
+      border-color: #c9a882;
+      background: #fdf5ee;
+    }
+
+    #file-input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+      height: 100%;
+    }
+
+    .upload-icon { font-size: 2.8rem; margin-bottom: 12px; }
+
+    #drop-zone h2 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    #drop-zone p {
+      color: var(--muted);
+      font-size: 0.88rem;
+    }
+
+    .tips {
+      padding: 20px 24px;
+      background: #fdf9f6;
+      border-top: 1px solid var(--border);
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .tip {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      flex: 1;
+      min-width: 160px;
+    }
+
+    .tip-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: 1px; }
+
+    .tip-text {
+      font-size: 0.8rem;
+      color: var(--muted);
+      line-height: 1.4;
+    }
+
+    /* ── Loading ── */
+    #loading {
+      display: none;
+      text-align: center;
+      padding: 48px 24px;
+    }
+
+    #loading.visible { display: block; }
+
+    .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border);
+      border-top-color: #c9a882;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      margin: 0 auto 14px;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Results ── */
+    .section-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 28px 0 20px;
+      color: var(--muted);
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 600;
+    }
+
+    .section-divider::before, .section-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    /* Season hero */
+    .season-hero {
+      border-radius: var(--radius);
+      overflow: hidden;
+      border: 1px solid var(--border);
+      margin-bottom: 20px;
+    }
+
+    .season-banner {
+      padding: 32px 28px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    .season-emoji { font-size: 3rem; }
+
+    .season-info { flex: 1; min-width: 200px; }
+
+    .season-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      font-weight: 700;
+      opacity: 0.7;
+      margin-bottom: 4px;
+    }
+
+    .season-name {
+      font-size: 2rem;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .season-tagline {
+      font-size: 0.9rem;
+      opacity: 0.75;
+      line-height: 1.45;
+    }
+
+    .season-badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 10px;
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 4px 10px;
+      border-radius: 99px;
+      font-size: 0.74rem;
+      font-weight: 600;
+      background: rgba(0,0,0,0.12);
+    }
+
+    /* Analysis row */
+    .analysis-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 20px;
+    }
+
+    @media (max-width: 560px) {
+      .analysis-row { grid-template-columns: 1fr; }
+    }
+
+    .info-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+    }
+
+    .info-card h3 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+
+    /* Skin sample */
+    .skin-sample-row {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    .skin-swatch {
+      width: 52px;
+      height: 52px;
+      border-radius: 50%;
+      border: 3px solid var(--border);
+      flex-shrink: 0;
+    }
+
+    .skin-info .label {
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
+
+    .skin-info .value {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-top: 2px;
+    }
+
+    .skin-info .sub {
+      font-size: 0.76rem;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+
+    .attr-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .attr-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.85rem;
+    }
+
+    .attr-row .attr-label { color: var(--muted); }
+
+    .attr-row .attr-value { font-weight: 600; }
+
+    .undertone-bar {
+      height: 8px;
+      border-radius: 4px;
+      margin-top: 10px;
+      background: linear-gradient(to right, #4a90d9, #d4a373, #c9748c);
+      position: relative;
+    }
+
+    .undertone-marker {
+      width: 14px;
+      height: 14px;
+      background: white;
+      border: 2px solid #333;
+      border-radius: 50%;
+      position: absolute;
+      top: -3px;
+      transform: translateX(-50%);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+
+    .undertone-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    /* Preview card */
+    .preview-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      margin-bottom: 20px;
+    }
+
+    .preview-inner {
+      display: flex;
+      gap: 0;
+    }
+
+    #preview-img {
+      width: 220px;
+      height: 220px;
+      object-fit: cover;
+      flex-shrink: 0;
+      display: block;
+    }
+
+    @media (max-width: 500px) {
+      .preview-inner { flex-direction: column; }
+      #preview-img { width: 100%; height: 200px; }
+    }
+
+    .preview-aside {
+      padding: 20px;
+      flex: 1;
+    }
+
+    .preview-aside h3 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    /* Palette grids */
+    .palette-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .palette-section h3 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .palette-section .palette-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+
+    .palette-group {
+      margin-bottom: 22px;
+    }
+
+    .palette-group:last-child { margin-bottom: 0; }
+
+    .palette-group-label {
+      font-size: 0.78rem;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .color-row {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .color-chip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      cursor: pointer;
+    }
+
+    .color-chip:hover .chip-swatch { transform: scale(1.1); }
+
+    .chip-swatch {
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+      border: 1px solid rgba(0,0,0,0.08);
+      transition: transform 0.15s;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    .chip-label {
+      font-size: 0.66rem;
+      color: var(--muted);
+      text-align: center;
+      max-width: 48px;
+      line-height: 1.2;
+    }
+
+    /* Avoid list */
+    .avoid-section {
+      background: #fff8f8;
+      border: 1px solid #f0d8d8;
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .avoid-section h3 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: #b07070;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .avoid-section .palette-desc {
+      font-size: 0.85rem;
+      color: #a08080;
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+
+    .avoid-chip .chip-swatch {
+      opacity: 0.6;
+      position: relative;
+    }
+
+    .avoid-chip .chip-label { color: #b09090; }
+
+    /* Metals */
+    .metal-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .metal-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 14px;
+      border-radius: 99px;
+      border: 1px solid var(--border);
+      font-size: 0.82rem;
+      font-weight: 500;
+      background: var(--bg);
+    }
+
+    .metal-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+    }
+
+    /* Tips card */
+    .tips-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .tips-card h3 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 16px;
+    }
+
+    .style-tip {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.87rem;
+      line-height: 1.45;
+    }
+
+    .style-tip:last-child { border-bottom: none; }
+    .style-tip .tip-icon { font-size: 1rem; flex-shrink: 0; margin-top: 1px; }
+
+    /* Reset */
+    .reset-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 18px;
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      background: var(--surface);
+      color: var(--muted);
+      font-size: 0.83rem;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+      margin-top: 4px;
+    }
+
+    .reset-btn:hover { color: var(--text); border-color: #c9a882; }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(80px);
+      background: var(--text);
+      color: white;
+      padding: 10px 18px;
+      border-radius: 99px;
+      font-size: 0.83rem;
+      transition: transform 0.3s ease;
+      pointer-events: none;
+      white-space: nowrap;
+      z-index: 100;
+    }
+
+    #toast.show { transform: translateX(-50%) translateY(0); }
+
+    /* Adjust undertone */
+    .manual-adjust {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+
+    .adjust-btn {
+      padding: 6px 12px;
+      border: 1px solid var(--border);
+      border-radius: 99px;
+      background: var(--bg);
+      font-size: 0.78rem;
+      cursor: pointer;
+      transition: all 0.15s;
+      color: var(--muted);
+    }
+
+    .adjust-btn:hover, .adjust-btn.active {
+      border-color: #c9a882;
+      color: var(--text);
+      background: #fdf5ee;
+    }
+
+    /* ── Gender prediction ── */
+    .gender-prediction {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 7px 12px;
+      border-radius: 8px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      font-size: 0.8rem;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    .gender-prediction .gp-label { color: var(--muted); }
+
+    .gender-prediction .gp-value {
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .gender-prediction .gp-conf {
+      font-size: 0.72rem;
+      color: var(--muted);
+    }
+
+    .gender-prediction .gp-spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid var(--border);
+      border-top-color: #c9a882;
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      flex-shrink: 0;
+    }
+
+    /* ── Draping comparison ── */
+    .compare-section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 24px;
+      margin-bottom: 20px;
+    }
+
+    .compare-section > h3 {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      color: var(--muted);
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .compare-section > .compare-desc {
+      font-size: 0.85rem;
+      color: var(--muted);
+      margin-bottom: 18px;
+      line-height: 1.4;
+    }
+
+    .compare-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    @media (max-width: 500px) {
+      .compare-row { grid-template-columns: 1fr; }
+    }
+
+    .compare-panel { display: flex; flex-direction: column; gap: 10px; }
+
+    .compare-bg {
+      aspect-ratio: 3 / 4;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: background-color 0.35s ease;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .compare-bg img {
+      width: 75%;
+      height: 75%;
+      object-fit: cover;
+      border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+      display: block;
+      position: relative;
+      z-index: 1;
+    }
+
+    .compare-footer {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .compare-verdict {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      padding: 3px 10px;
+      border-radius: 99px;
+    }
+
+    .compare-verdict.good  { background: #e8f5e0; color: #3a7a18; }
+    .compare-verdict.avoid { background: #fce8e8; color: #a02020; }
+
+    .compare-color-dot {
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      border: 1px solid rgba(0,0,0,0.1);
+      flex-shrink: 0;
+      transition: background-color 0.35s;
+    }
+
+    .compare-color-name {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .compare-chips-label {
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-bottom: 6px;
+      font-weight: 500;
+    }
+
+    .compare-chips { display: flex; gap: 6px; flex-wrap: wrap; }
+
+    .compare-chip {
+      width: 28px;
+      height: 28px;
+      border-radius: 6px;
+      border: 2px solid transparent;
+      cursor: pointer;
+      transition: transform 0.15s, border-color 0.15s;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+    }
+
+    .compare-chip:hover { transform: scale(1.15); }
+    .compare-chip.active { border-color: #333; transform: scale(1.1); }
+
+    /* ── Palette with photo ── */
+    .palette-with-photo {
+      display: flex;
+      gap: 0;
+      align-items: stretch;
+    }
+
+    .palette-photo-col {
+      width: 160px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      margin: -24px -24px -24px 0;
+      padding: 0;
+      position: relative;
+    }
+
+    .palette-photo-col img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      border-radius: var(--radius) 0 0 var(--radius);
+    }
+
+    .palette-colors-col {
+      flex: 1;
+      min-width: 0;
+      padding-left: 24px;
+    }
+
+    @media (max-width: 560px) {
+      .palette-with-photo { flex-direction: column; }
+      .palette-photo-col {
+        width: 100%;
+        height: 180px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+        margin: -24px -24px 20px -24px;
+      }
+      .palette-photo-col img { border-radius: var(--radius) var(--radius) 0 0; }
+      .palette-colors-col { padding-left: 0; }
+    }
+
+    /* ── Photo grid ── */
+    .photo-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(80px, 1fr));
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    .photo-thumb {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .photo-thumb img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .photo-thumb .remove-photo {
+      position: absolute;
+      top: 3px;
+      right: 3px;
+      width: 18px;
+      height: 18px;
+      border-radius: 50%;
+      background: rgba(0,0,0,0.6);
+      color: white;
+      border: none;
+      font-size: 10px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      line-height: 1;
+      opacity: 0;
+      transition: opacity 0.15s;
+    }
+
+    .photo-thumb:hover .remove-photo { opacity: 1; }
+
+    .photo-count-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 10px;
+      background: #eef5e8;
+      border: 1px solid #c8ddb8;
+      border-radius: 99px;
+      font-size: 0.74rem;
+      color: #4a7a2a;
+      font-weight: 600;
+      margin-bottom: 10px;
+    }
+
+    .add-more-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 7px 14px;
+      border: 1px dashed #c9a882;
+      border-radius: 8px;
+      background: #fdf9f6;
+      color: #a07040;
+      font-size: 0.8rem;
+      cursor: pointer;
+      transition: background 0.15s;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 10px;
+    }
+
+    .add-more-btn:hover { background: #fdf3e8; }
+
+    .add-more-btn input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+      width: 100%;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Personal Color Analysis</h1>
+    <p>Upload one or more photos of your face to discover your color season and the shades that will make you glow.</p>
+  </header>
+
+  <div class="container">
+    <!-- Upload -->
+    <div id="upload-section">
+      <div class="upload-card">
+        <div id="drop-zone">
+          <input type="file" id="file-input" accept="image/*" multiple />
+          <div class="upload-icon">📸</div>
+          <h2>Upload your photos</h2>
+          <p>Click to browse or drag & drop — <strong>select multiple photos</strong> for a more accurate reading</p>
+        </div>
+        <div class="tips">
+          <div class="tip">
+            <span class="tip-icon">☀️</span>
+            <span class="tip-text">Use a photo taken in natural daylight for the most accurate reading</span>
+          </div>
+          <div class="tip">
+            <span class="tip-icon">🙂</span>
+            <span class="tip-text">Upload 2–5 photos from different days for the most reliable result</span>
+          </div>
+          <div class="tip">
+            <span class="tip-icon">👕</span>
+            <span class="tip-text">Wear a neutral top so clothing doesn't affect your skin tone reading</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Loading -->
+    <div id="loading">
+      <div class="spinner"></div>
+      <p style="color:var(--muted);font-size:0.9rem;">Analyzing your colors…</p>
+    </div>
+
+    <!-- Results -->
+    <div id="results-section">
+      <!-- Preview + season hero -->
+      <div class="preview-card">
+        <div class="preview-inner">
+          <div style="width:220px;flex-shrink:0;padding:14px;background:var(--bg);border-right:1px solid var(--border);">
+            <div class="photo-grid" id="photo-grid"></div>
+            <label class="add-more-btn">
+              <input type="file" id="add-more-input" accept="image/*" multiple />
+              + Add more photos
+            </label>
+          </div>
+          <div class="preview-aside">
+            <h3>Your photos</h3>
+            <div class="photo-count-badge" id="photo-count-badge">
+              <span>●</span> <span id="photo-count-text">0 photos analyzed</span>
+            </div>
+            <p style="font-size:0.84rem;color:var(--muted);line-height:1.5;margin-bottom:14px;">
+              Skin tone sampled and combined across all photos. More photos = more accurate result. If the result feels off, adjust below.
+            </p>
+            <div style="margin-bottom:10px;">
+              <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;">Style presentation:</div>
+              <div class="gender-prediction" id="gender-prediction">
+                <span class="gp-spinner"></span>
+                <span class="gp-label">Detecting…</span>
+              </div>
+              <div class="manual-adjust">
+                <button class="adjust-btn" data-gender="feminine">Feminine</button>
+                <button class="adjust-btn" data-gender="masculine">Masculine</button>
+                <button class="adjust-btn" data-gender="neutral">Neutral</button>
+              </div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;">Manually override undertone:</div>
+              <div class="manual-adjust">
+                <button class="adjust-btn" data-undertone="warm">Warm</button>
+                <button class="adjust-btn" data-undertone="cool">Cool</button>
+                <button class="adjust-btn" data-undertone="neutral">Neutral</button>
+              </div>
+            </div>
+            <div style="margin-bottom:10px;">
+              <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;">Manually override depth:</div>
+              <div class="manual-adjust">
+                <button class="adjust-btn" data-depth="light">Light</button>
+                <button class="adjust-btn" data-depth="medium">Medium</button>
+                <button class="adjust-btn" data-depth="deep">Deep</button>
+              </div>
+            </div>
+            <button class="reset-btn" id="reset-btn">↩ New photo</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Season hero banner -->
+      <div class="season-hero" id="season-hero">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- Skin analysis row -->
+      <div class="analysis-row">
+        <div class="info-card">
+          <h3>Detected Skin Tone</h3>
+          <div class="skin-sample-row">
+            <div class="skin-swatch" id="skin-swatch"></div>
+            <div class="skin-info">
+              <div class="label">Average skin sample</div>
+              <div class="value" id="skin-hex"></div>
+              <div class="sub" id="skin-depth"></div>
+            </div>
+          </div>
+          <div class="attr-list">
+            <div class="attr-row">
+              <span class="attr-label">Depth</span>
+              <span class="attr-value" id="attr-depth">—</span>
+            </div>
+            <div class="attr-row">
+              <span class="attr-label">Undertone</span>
+              <span class="attr-value" id="attr-undertone">—</span>
+            </div>
+            <div class="attr-row">
+              <span class="attr-label">Contrast level</span>
+              <span class="attr-value" id="attr-contrast">—</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="info-card">
+          <h3>Undertone Spectrum</h3>
+          <div style="margin-bottom:16px;">
+            <div class="undertone-bar">
+              <div class="undertone-marker" id="undertone-marker"></div>
+            </div>
+            <div class="undertone-labels">
+              <span>Cool</span>
+              <span>Neutral</span>
+              <span>Warm</span>
+            </div>
+          </div>
+          <div class="attr-list" id="season-traits">
+            <!-- filled by JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Recommended palette -->
+      <div class="palette-section" id="palette-section">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- Visual comparison -->
+      <div class="compare-section" id="compare-section" style="display:none;">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- Colors to avoid -->
+      <div class="avoid-section" id="avoid-section">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- Metals & neutrals -->
+      <div class="palette-section" id="metals-section">
+        <!-- filled by JS -->
+      </div>
+
+      <!-- Style tips -->
+      <div class="tips-card" id="tips-card">
+        <!-- filled by JS -->
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <script>
+  (() => {
+    // ── Season database ───────────────────────────────────────────────────────
+    const SEASONS = {
+      spring: {
+        name: 'Spring',
+        emoji: '🌸',
+        tagline: 'Warm, light, and clear — you radiate freshness and golden warmth.',
+        bg: 'linear-gradient(135deg, #fff4e0, #fde8c8)',
+        textColor: '#5a3a00',
+        accent: '#d4842a',
+        badges: ['Warm', 'Light', 'Clear'],
+        traits: [
+          { label: 'Season type', value: 'True / Light Spring' },
+          { label: 'Color temperature', value: 'Warm' },
+          { label: 'Chroma', value: 'Clear & Bright' },
+        ],
+        palette: {
+          description: 'Your best colors are warm, clear, and light — think sunlit gardens and golden afternoons. Avoid anything muddy, dusty, or icy.',
+          groups: [
+            {
+              label: '🌼 Warm & Bright — your power colors',
+              colors: [
+                { name: 'Peach', hex: '#FFAD87' },
+                { name: 'Coral', hex: '#FF6B6B' },
+                { name: 'Warm Red', hex: '#E8453C' },
+                { name: 'Golden Yellow', hex: '#F7C948' },
+                { name: 'Camel', hex: '#C19A6B' },
+                { name: 'Warm Beige', hex: '#E8C9A0' },
+                { name: 'Ivory', hex: '#FFFFF0' },
+              ]
+            },
+            {
+              label: '🌿 Greens & Blues that love you',
+              colors: [
+                { name: 'Apple Green', hex: '#6DBE45' },
+                { name: 'Warm Olive', hex: '#9AAB3B' },
+                { name: 'Teal', hex: '#00A693' },
+                { name: 'Clear Aqua', hex: '#5BC8C8' },
+                { name: 'Periwinkle', hex: '#8FB4E6' },
+              ]
+            },
+            {
+              label: '🌺 Darks & Neutrals',
+              colors: [
+                { name: 'Warm Brown', hex: '#8B5E3C' },
+                { name: 'Tan', hex: '#D2A679' },
+                { name: 'Dark Camel', hex: '#A0724A' },
+                { name: 'Off White', hex: '#FAF3E0' },
+              ]
+            },
+          ]
+        },
+        avoid: {
+          description: 'These shades wash you out or make your skin look sallow or ruddy.',
+          colors: [
+            { name: 'Black', hex: '#1a1a1a' },
+            { name: 'Cool Gray', hex: '#9E9E9E' },
+            { name: 'Icy Lavender', hex: '#D4BAEE' },
+            { name: 'Cool Pink', hex: '#E91E8C' },
+            { name: 'Fuchsia', hex: '#C2185B' },
+            { name: 'Ash Brown', hex: '#A09080' },
+          ]
+        },
+        metals: [
+          { name: 'Gold', hex: '#FFD700' },
+          { name: 'Rose Gold', hex: '#E8A598' },
+          { name: 'Warm Copper', hex: '#B87333' },
+        ],
+        tips: {
+          feminine: [
+            { icon: '💄', text: 'Lips: peachy coral, warm rose, or soft brick red. Avoid blue-based or cool pinks.' },
+            { icon: '👁', text: 'Eye shadow: warm peach, gold, bronze, or terracotta. Keep it warm and luminous.' },
+            { icon: '🌸', text: 'Blush: peachy-pink or apricot tones — avoid cool rose or mauve.' },
+            { icon: '💇', text: 'Hair colors: golden blonde, honey, strawberry blonde, or warm auburn.' },
+            { icon: '📿', text: 'Jewelry: delicate gold, rose gold, or warm copper. Avoid silver and platinum.' },
+          ],
+          masculine: [
+            { icon: '👔', text: 'Suits & blazers: tan, camel, warm beige, or light warm gray look sharp on you.' },
+            { icon: '👕', text: 'Shirts: peach, soft coral, warm ivory, light olive, or sky blue.' },
+            { icon: '🧣', text: 'Ties & scarves: warm gold, coral, soft teal, or camel tones.' },
+            { icon: '💇', text: 'Hair and beard: golden, honey, or warm-toned coloring flatters your complexion.' },
+            { icon: '⌚', text: 'Accessories: gold-toned watches, warm tortoiseshell frames, tan leather.' },
+          ],
+          neutral: [
+            { icon: '👗', text: 'Wear your best colors near your face — scarves, collars, and necklines matter most.' },
+            { icon: '💇', text: 'Hair colors: golden blonde, honey, strawberry blonde, or warm auburn.' },
+            { icon: '👓', text: 'Frames: warm tortoiseshell, honey, or gold frames complement your coloring.' },
+            { icon: '🧣', text: 'Accessories: warm-toned leather, gold hardware, and camel or tan fabrics.' },
+            { icon: '🌟', text: 'You can wear light prints and patterns — your season is playful and energetic.' },
+          ],
+        }
+      },
+
+      summer: {
+        name: 'Summer',
+        emoji: '🌊',
+        tagline: 'Cool, soft, and muted — you bloom in dusty pastels and smoky hues.',
+        bg: 'linear-gradient(135deg, #e8f0fb, #d8e8f8)',
+        textColor: '#1a2a4a',
+        accent: '#5b8db8',
+        badges: ['Cool', 'Light–Medium', 'Muted'],
+        traits: [
+          { label: 'Season type', value: 'True / Light Summer' },
+          { label: 'Color temperature', value: 'Cool' },
+          { label: 'Chroma', value: 'Soft & Muted' },
+        ],
+        palette: {
+          description: 'Your palette is cool-toned and softly blended — think hazy coastal mornings and twilight blues. Avoid warm, earthy, or too-bright shades.',
+          groups: [
+            {
+              label: '🩵 Blues & Lavenders — your signature colors',
+              colors: [
+                { name: 'Powder Blue', hex: '#B0CCEB' },
+                { name: 'Dusty Blue', hex: '#7097B4' },
+                { name: 'Periwinkle', hex: '#8F9BD1' },
+                { name: 'Lavender', hex: '#C4A9D4' },
+                { name: 'Mauve', hex: '#B07A95' },
+                { name: 'Dusty Rose', hex: '#D4889A' },
+                { name: 'Soft Pink', hex: '#F2B8C6' },
+              ]
+            },
+            {
+              label: '🌿 Soft Greens & Teals',
+              colors: [
+                { name: 'Sage', hex: '#87A87A' },
+                { name: 'Sea Glass', hex: '#9DBEAF' },
+                { name: 'Dusty Teal', hex: '#5F8E8E' },
+                { name: 'Soft Mint', hex: '#A8D5C2' },
+              ]
+            },
+            {
+              label: '🩶 Neutrals & Darks',
+              colors: [
+                { name: 'Soft White', hex: '#F5F5F0' },
+                { name: 'Cool Gray', hex: '#B8BCC8' },
+                { name: 'Cocoa', hex: '#9E7E72' },
+                { name: 'Navy', hex: '#354E77' },
+              ]
+            },
+          ]
+        },
+        avoid: {
+          description: 'These overpowering or warm colors clash with your gentle coloring.',
+          colors: [
+            { name: 'Black', hex: '#1a1a1a' },
+            { name: 'Warm Orange', hex: '#FF6B00' },
+            { name: 'Camel', hex: '#C19A6B' },
+            { name: 'Bright Yellow', hex: '#FFD700' },
+            { name: 'Tomato Red', hex: '#E8281A' },
+            { name: 'Warm Brown', hex: '#8B5E3C' },
+          ]
+        },
+        metals: [
+          { name: 'Silver', hex: '#C0C0C0' },
+          { name: 'Platinum', hex: '#E5E4E2' },
+          { name: 'Pewter', hex: '#96A8A1' },
+        ],
+        tips: {
+          feminine: [
+            { icon: '💄', text: 'Lips: dusty rose, soft berry, or cool-toned mauve. Avoid orange-based reds.' },
+            { icon: '👁', text: 'Eye shadow: taupe, heather, soft plum, cool gray, and smoky lavender.' },
+            { icon: '🌸', text: 'Blush: cool rose, soft pink, or muted mauve. Avoid peach or coral.' },
+            { icon: '💇', text: 'Hair colors: ash blonde, cool brown, salt & pepper, or soft platinum.' },
+            { icon: '📿', text: 'Jewelry: silver, platinum, or white gold. Pearls and cool-toned stones look stunning.' },
+          ],
+          masculine: [
+            { icon: '👔', text: 'Suits: medium gray, dusty navy, cool blue-gray, or soft charcoal flatter you best.' },
+            { icon: '👕', text: 'Shirts: powder blue, soft lavender, dusty rose, sage green, or cool white.' },
+            { icon: '👟', text: 'Footwear: gray, cool brown, navy, or black leather shoes and boots.' },
+            { icon: '💇', text: 'Hair and beard: ash blonde, cool light brown, or silver-gray are most flattering.' },
+            { icon: '⌚', text: 'Accessories: silver-toned watches, cool gray or navy ties, pewter hardware.' },
+          ],
+          neutral: [
+            { icon: '👗', text: 'Your palette shines in monochromatic outfits — tonal dressing in blues, mauves, and grays.' },
+            { icon: '💇', text: 'Hair colors: ash blonde, cool brown, salt & pepper, or soft platinum.' },
+            { icon: '👓', text: 'Frames: silver, gunmetal, cool gray, or translucent pale frames suit you well.' },
+            { icon: '🧣', text: 'Accessories: silver hardware, cool-toned fabrics, and dusty or muted tones.' },
+            { icon: '🌟', text: 'You look polished in soft, blended prints — watercolors, florals, and subtle patterns.' },
+          ],
+        }
+      },
+
+      autumn: {
+        name: 'Autumn',
+        emoji: '🍂',
+        tagline: 'Warm, deep, and muted — you glow in earthy richness and golden warmth.',
+        bg: 'linear-gradient(135deg, #fdf0e0, #f5ddc0)',
+        textColor: '#4a2800',
+        accent: '#b06820',
+        badges: ['Warm', 'Medium–Deep', 'Muted'],
+        traits: [
+          { label: 'Season type', value: 'True / Deep Autumn' },
+          { label: 'Color temperature', value: 'Warm' },
+          { label: 'Chroma', value: 'Rich & Muted' },
+        ],
+        palette: {
+          description: 'Your palette is warm, rich, and earthy — think forest floors, harvest fields, and burnished copper. Avoid anything icy, pastel, or too-bright.',
+          groups: [
+            {
+              label: '🍁 Warm Earths — your signature colors',
+              colors: [
+                { name: 'Rust', hex: '#B7410E' },
+                { name: 'Burnt Orange', hex: '#CC5500' },
+                { name: 'Terracotta', hex: '#C76544' },
+                { name: 'Mustard', hex: '#D4A017' },
+                { name: 'Caramel', hex: '#C68642' },
+                { name: 'Warm Khaki', hex: '#BDB07A' },
+                { name: 'Cream', hex: '#FFFDD0' },
+              ]
+            },
+            {
+              label: '🌲 Muted Greens & Browns',
+              colors: [
+                { name: 'Olive', hex: '#808000' },
+                { name: 'Forest Green', hex: '#228B22' },
+                { name: 'Moss', hex: '#8A9A5B' },
+                { name: 'Chocolate', hex: '#7B3F00' },
+                { name: 'Warm Burgundy', hex: '#8B1A1A' },
+              ]
+            },
+            {
+              label: '🤎 Rich Darks & Neutrals',
+              colors: [
+                { name: 'Dark Brown', hex: '#5C4033' },
+                { name: 'Warm Black', hex: '#2B2118' },
+                { name: 'Mahogany', hex: '#C04000' },
+                { name: 'Camel', hex: '#C19A6B' },
+              ]
+            },
+          ]
+        },
+        avoid: {
+          description: 'Cool, icy, or overly bright colors clash with your warm, rich coloring.',
+          colors: [
+            { name: 'Pure Black', hex: '#000000' },
+            { name: 'Pure White', hex: '#FFFFFF' },
+            { name: 'Icy Pink', hex: '#FFB6C1' },
+            { name: 'Cool Blue', hex: '#4169E1' },
+            { name: 'Fuchsia', hex: '#FF1493' },
+            { name: 'Silver Gray', hex: '#C0C0C0' },
+          ]
+        },
+        metals: [
+          { name: 'Gold', hex: '#FFD700' },
+          { name: 'Antique Gold', hex: '#CFB53B' },
+          { name: 'Bronze', hex: '#CD7F32' },
+          { name: 'Copper', hex: '#B87333' },
+        ],
+        tips: {
+          feminine: [
+            { icon: '💄', text: 'Lips: warm brick red, rust, terracotta, or rich berry. Avoid pink-toned glosses.' },
+            { icon: '👁', text: 'Eye shadow: bronze, copper, warm brown, olive, and deep rust bring out your eyes.' },
+            { icon: '🌸', text: 'Blush: warm terracotta, peachy-brown, or soft coral. Avoid cool pinks entirely.' },
+            { icon: '💇', text: 'Hair colors: rich auburn, dark copper, warm chestnut, or dark chocolate.' },
+            { icon: '📿', text: 'Jewelry: gold, antique gold, bronze, and copper. Amber and tortoiseshell accessories.' },
+          ],
+          masculine: [
+            { icon: '👔', text: 'Suits: warm charcoal, dark chocolate brown, camel, or deep olive flatter you most.' },
+            { icon: '👕', text: 'Shirts: rust, burnt orange, olive, mustard, warm beige, or forest green.' },
+            { icon: '🧣', text: 'Layer textures — leather, suede, and chunky knits in earth tones are your signature.' },
+            { icon: '💇', text: 'Hair and beard: rich auburn, dark copper, warm chestnut, or dark chocolate tones.' },
+            { icon: '⌚', text: 'Accessories: gold or bronze hardware, warm brown leather, amber-toned pieces.' },
+          ],
+          neutral: [
+            { icon: '👗', text: 'Layer textures — leather, suede, knits, and velvet in earth tones are your signature look.' },
+            { icon: '💇', text: 'Hair colors: rich auburn, dark copper, warm chestnut, or dark chocolate.' },
+            { icon: '👓', text: 'Frames: warm tortoiseshell, gold, amber, or rich brown frames complement you.' },
+            { icon: '🧣', text: 'Accessories: warm brown leather, gold hardware, amber stones, and earthy fabrics.' },
+            { icon: '🌟', text: 'Bold patterns in earthy tones work beautifully — paisley, plaid, and animal prints.' },
+          ],
+        }
+      },
+
+      winter: {
+        name: 'Winter',
+        emoji: '❄️',
+        tagline: 'Cool, deep, and clear — you command attention in bold, vivid contrasts.',
+        bg: 'linear-gradient(135deg, #e8e8f5, #d0d0e8)',
+        textColor: '#0a0a2a',
+        accent: '#3a3a8a',
+        badges: ['Cool', 'Medium–Deep', 'Clear'],
+        traits: [
+          { label: 'Season type', value: 'True / Bright Winter' },
+          { label: 'Color temperature', value: 'Cool' },
+          { label: 'Chroma', value: 'Clear & Vivid' },
+        ],
+        palette: {
+          description: 'Your palette is cool and high-contrast — think midnight skies, fresh snow, and jewel tones. Avoid anything warm, dusty, or muted.',
+          groups: [
+            {
+              label: '💎 Jewel Tones — your power colors',
+              colors: [
+                { name: 'True Red', hex: '#CC0000' },
+                { name: 'Royal Blue', hex: '#2255CC' },
+                { name: 'Emerald', hex: '#008060' },
+                { name: 'Sapphire', hex: '#0F52BA' },
+                { name: 'Fuchsia', hex: '#C2185B' },
+                { name: 'Icy Pink', hex: '#F88FBB' },
+                { name: 'Amethyst', hex: '#9C27B0' },
+              ]
+            },
+            {
+              label: '🌙 Icy Pastels',
+              colors: [
+                { name: 'Icy Blue', hex: '#B8D8E8' },
+                { name: 'Icy Pink', hex: '#F8D0DC' },
+                { name: 'Icy Lavender', hex: '#DCD0F0' },
+                { name: 'Icy Mint', hex: '#C8ECD8' },
+              ]
+            },
+            {
+              label: '🖤 Neutrals & Classics',
+              colors: [
+                { name: 'True Black', hex: '#0a0a0a' },
+                { name: 'Pure White', hex: '#FFFFFF' },
+                { name: 'Charcoal', hex: '#36454F' },
+                { name: 'Navy', hex: '#1B2A4A' },
+                { name: 'Cool Gray', hex: '#808080' },
+              ]
+            },
+          ]
+        },
+        avoid: {
+          description: 'Warm, earthy, or dusty shades make you look washed out or sallow.',
+          colors: [
+            { name: 'Camel', hex: '#C19A6B' },
+            { name: 'Warm Brown', hex: '#8B5E3C' },
+            { name: 'Orange', hex: '#FF6B00' },
+            { name: 'Mustard', hex: '#DFBC37' },
+            { name: 'Olive', hex: '#808000' },
+            { name: 'Warm Beige', hex: '#E8C9A0' },
+          ]
+        },
+        metals: [
+          { name: 'Silver', hex: '#C0C0C0' },
+          { name: 'Platinum', hex: '#E5E4E2' },
+          { name: 'White Gold', hex: '#EBEBD3' },
+        ],
+        tips: {
+          feminine: [
+            { icon: '💄', text: 'Lips: true red, cool berry, fuchsia, or deep plum. You can pull off dramatic lip colors.' },
+            { icon: '👁', text: 'Eye shadow: charcoal, navy, icy pink, cool plum. Black liner looks stunning on you.' },
+            { icon: '🌸', text: 'Blush: cool rose, berry, or deep cool pink. Avoid peach, coral, or bronze blushers.' },
+            { icon: '💇', text: 'Hair colors: true black, cool dark brown, or cool platinum blonde.' },
+            { icon: '📿', text: 'Jewelry: silver, white gold, platinum, and cool-toned stones. Diamonds are your best friend.' },
+          ],
+          masculine: [
+            { icon: '👔', text: 'Suits: true black, charcoal, or navy — high contrast looks are your superpower.' },
+            { icon: '👕', text: 'Shirts: pure white, icy blue, or bold jewel tones like royal blue or emerald.' },
+            { icon: '👟', text: 'Footwear: black, dark navy, or cool charcoal leather shoes and boots.' },
+            { icon: '💇', text: 'Hair and beard: true black, cool dark brown, or cool platinum are most flattering.' },
+            { icon: '⌚', text: 'Accessories: silver-toned watches, black leather, cool-toned ties and pocket squares.' },
+          ],
+          neutral: [
+            { icon: '👗', text: 'High contrast is your superpower — pair true black with white or a jewel tone for impact.' },
+            { icon: '💇', text: 'Hair colors: true black, cool dark brown, cool platinum blonde, or jet black.' },
+            { icon: '👓', text: 'Frames: black, silver, gunmetal, or clear — strong and graphic shapes suit you.' },
+            { icon: '🧣', text: 'Accessories: silver hardware, black leather, cool-toned and high-contrast pieces.' },
+            { icon: '🌟', text: 'Bold, graphic patterns work for you — high contrast stripes, geometric, color-blocked pieces.' },
+          ],
+        }
+      }
+    };
+
+    // ── State ─────────────────────────────────────────────────────────────────
+    let currentUndertone = null;
+    let currentDepth = null;
+    let detectedUndertone = null;
+    let detectedDepth = null;
+    let currentGender = 'neutral';       // 'feminine' | 'masculine' | 'neutral'
+    let faceModelsReady = false;
+    let faceModelsLoading = false;
+
+    // Load face-api.js models lazily (first time a photo is uploaded)
+    async function ensureFaceModels() {
+      if (faceModelsReady || faceModelsLoading) return;
+      faceModelsLoading = true;
+      const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+      try {
+        await Promise.all([
+          faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+          faceapi.nets.ageGenderNet.loadFromUri(MODEL_URL),
+        ]);
+        faceModelsReady = true;
+      } catch (e) {
+        console.warn('face-api models failed to load:', e);
+      }
+      faceModelsLoading = false;
+    }
+
+    async function detectGender(img) {
+      await ensureFaceModels();
+      if (!faceModelsReady) return null;
+      try {
+        const result = await faceapi
+          .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+          .withAgeAndGender();
+        if (!result) return null;
+        return { gender: result.gender, confidence: result.genderProbability };
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // ── DOM refs ──────────────────────────────────────────────────────────────
+    const dropZone      = document.getElementById('drop-zone');
+    const fileInput     = document.getElementById('file-input');
+    const uploadSection = document.getElementById('upload-section');
+    const resultsSection= document.getElementById('results-section');
+    const loading       = document.getElementById('loading');
+    const canvas        = document.getElementById('canvas');
+    const ctx           = canvas.getContext('2d');
+    const toast         = document.getElementById('toast');
+
+    // Accumulated photos across uploads: [{url, img}]
+    let loadedPhotos = [];
+
+    // ── Upload events ─────────────────────────────────────────────────────────
+    dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+    dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+    dropZone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropZone.classList.remove('drag-over');
+      const files = [...e.dataTransfer.files].filter(f => f.type.startsWith('image/'));
+      if (files.length) processFiles(files, false);
+    });
+    fileInput.addEventListener('change', e => {
+      const files = [...e.target.files].filter(f => f.type.startsWith('image/'));
+      if (files.length) processFiles(files, false);
+    });
+    document.getElementById('add-more-input').addEventListener('change', e => {
+      const files = [...e.target.files].filter(f => f.type.startsWith('image/'));
+      if (files.length) processFiles(files, true);
+    });
+    document.getElementById('reset-btn').addEventListener('click', reset);
+
+    // Manual overrides
+    document.querySelectorAll('.adjust-btn[data-undertone]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.adjust-btn[data-undertone]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentUndertone = btn.dataset.undertone;
+        renderSeason();
+      });
+    });
+
+    document.querySelectorAll('.adjust-btn[data-depth]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.adjust-btn[data-depth]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentDepth = btn.dataset.depth;
+        renderSeason();
+      });
+    });
+
+    document.querySelectorAll('.adjust-btn[data-gender]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.adjust-btn[data-gender]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentGender = btn.dataset.gender;
+        renderSeason();
+      });
+    });
+
+    // ── Main pipeline ─────────────────────────────────────────────────────────
+    function processFiles(files, addToExisting) {
+      if (!addToExisting) {
+        // revoke old object URLs
+        loadedPhotos.forEach(p => URL.revokeObjectURL(p.url));
+        loadedPhotos = [];
+      }
+
+      uploadSection.style.display = 'none';
+      loading.classList.add('visible');
+      resultsSection.style.display = 'none';
+
+      const promises = files.map(file => new Promise(resolve => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        img.onload = () => resolve({ url, img });
+        img.src = url;
+      }));
+
+      Promise.all(promises).then(photos => {
+        loadedPhotos = [...loadedPhotos, ...photos];
+        requestAnimationFrame(() => setTimeout(() => {
+          const result = analyzeImages(loadedPhotos.map(p => p.img));
+          detectedUndertone = currentUndertone = result.undertone;
+          detectedDepth     = currentDepth     = result.depth;
+          renderPhotoGrid();
+          renderAnalysis(result);
+          loading.classList.remove('visible');
+          resultsSection.style.display = 'block';
+          // Run gender detection in the background against the first photo
+          runGenderDetection(loadedPhotos[0].img);
+        }, 80));
+      });
+    }
+
+    function renderPhotoGrid() {
+      const grid = document.getElementById('photo-grid');
+      grid.innerHTML = '';
+      loadedPhotos.forEach((photo, idx) => {
+        const thumb = document.createElement('div');
+        thumb.className = 'photo-thumb';
+        thumb.innerHTML = `
+          <img src="${photo.url}" alt="Photo ${idx + 1}" />
+          <button class="remove-photo" title="Remove photo" data-idx="${idx}">✕</button>
+        `;
+        thumb.querySelector('.remove-photo').addEventListener('click', () => removePhoto(idx));
+        grid.appendChild(thumb);
+      });
+      const n = loadedPhotos.length;
+      document.getElementById('photo-count-text').textContent =
+        `${n} photo${n !== 1 ? 's' : ''} analyzed`;
+    }
+
+    function removePhoto(idx) {
+      URL.revokeObjectURL(loadedPhotos[idx].url);
+      loadedPhotos.splice(idx, 1);
+      if (loadedPhotos.length === 0) { reset(); return; }
+      renderPhotoGrid();
+      const result = analyzeImages(loadedPhotos.map(p => p.img));
+      detectedUndertone = currentUndertone = result.undertone;
+      detectedDepth     = currentDepth     = result.depth;
+      document.querySelectorAll('.adjust-btn').forEach(b => b.classList.remove('active'));
+      renderAnalysis(result);
+    }
+
+    async function runGenderDetection(img) {
+      setGenderUI('detecting');
+      const result = await detectGender(img);
+      if (result) {
+        const gender = result.gender === 'male' ? 'masculine' : 'feminine';
+        const pct = Math.round(result.confidence * 100);
+        currentGender = gender;
+        setGenderUI('detected', gender, pct);
+        // Activate the matching override button
+        document.querySelectorAll('.adjust-btn[data-gender]').forEach(b => {
+          b.classList.toggle('active', b.dataset.gender === gender);
+        });
+        renderSeason();
+      } else {
+        setGenderUI('failed');
+      }
+    }
+
+    function setGenderUI(state, gender, confidence) {
+      const el = document.getElementById('gender-prediction');
+      if (!el) return;
+      if (state === 'detecting') {
+        el.innerHTML = `<span class="gp-spinner"></span><span class="gp-label">Detecting…</span>`;
+      } else if (state === 'detected') {
+        const label = gender === 'feminine' ? 'Feminine' : 'Masculine';
+        el.innerHTML = `
+          <span class="gp-label">Detected:</span>
+          <span class="gp-value">${label}</span>
+          <span class="gp-conf">(${confidence}% confidence)</span>
+        `;
+      } else {
+        el.innerHTML = `<span class="gp-label">Could not detect — select below</span>`;
+      }
+    }
+
+    // ── Image analysis ────────────────────────────────────────────────────────
+    function sampleImagePixels(img) {
+      const SIZE = 300;
+      canvas.width = SIZE;
+      canvas.height = SIZE;
+      ctx.drawImage(img, 0, 0, SIZE, SIZE);
+
+      const cx = SIZE * 0.3, cy = SIZE * 0.2;
+      const cw = SIZE * 0.4, ch = SIZE * 0.6;
+      const data = ctx.getImageData(cx, cy, cw, ch).data;
+
+      const skinPixels = [];
+      const allPixels  = [];
+      for (let i = 0; i < data.length; i += 4) {
+        const r = data[i], g = data[i+1], b = data[i+2], a = data[i+3];
+        if (a < 128) continue;
+        allPixels.push([r, g, b]);
+        if (isSkinPixel(r, g, b)) skinPixels.push([r, g, b]);
+      }
+      return skinPixels.length > 80 ? skinPixels : allPixels;
+    }
+
+    function analyzeImages(imgs) {
+      // Pool skin pixels from every image for a combined reading
+      const allPixels = imgs.flatMap(img => sampleImagePixels(img));
+
+      // Average color across all samples
+      let rSum = 0, gSum = 0, bSum = 0;
+      for (const [r, g, b] of allPixels) { rSum += r; gSum += g; bSum += b; }
+      const n = allPixels.length;
+      const avgR = rSum / n, avgG = gSum / n, avgB = bSum / n;
+      const avgRgb = [Math.round(avgR), Math.round(avgG), Math.round(avgB)];
+
+      // Depth from luminance
+      const lum = luminance(avgRgb);
+      const depth = lum > 0.55 ? 'light' : lum > 0.2 ? 'medium' : 'deep';
+
+      // Undertone from warm/cool balance
+      const warmScore = (avgR - avgB) + (avgG - avgB) * 0.5;
+      const pinkScore = (avgR - avgG);
+
+      let undertone;
+      if (warmScore > 30 && pinkScore < 25) {
+        undertone = 'warm';
+      } else if (warmScore < 10 || (avgB > avgG && avgR - avgB < 30)) {
+        undertone = 'cool';
+      } else if (pinkScore > 30 && warmScore < 35) {
+        undertone = 'cool';
+      } else {
+        undertone = 'neutral';
+      }
+
+      const undertonePos = Math.max(0, Math.min(1, (warmScore + 40) / 100));
+
+      return { avgRgb, depth, undertone, undertonePos, photoCount: imgs.length };
+    }
+
+    function isSkinPixel(r, g, b) {
+      // RGB rule
+      if (r <= 95 || g <= 40 || b <= 20) return false;
+      if (Math.max(r, g, b) - Math.min(r, g, b) <= 15) return false;
+      if (r <= g || r <= b) return false;
+      // Allow wide range for diverse skin tones
+      const hsl = rgbToHsl([r, g, b]);
+      return hsl[0] >= 0 && hsl[0] <= 50 && hsl[1] >= 10 && hsl[1] <= 90;
+    }
+
+    // ── Render ────────────────────────────────────────────────────────────────
+    function renderAnalysis(result) {
+      // Skin swatch
+      const hex = rgbToHex(result.avgRgb);
+      document.getElementById('skin-swatch').style.background = hex;
+      document.getElementById('skin-hex').textContent = hex;
+      document.getElementById('skin-depth').textContent = `rgb(${result.avgRgb.join(', ')}) · combined from ${result.photoCount} photo${result.photoCount !== 1 ? 's' : ''}`;
+      document.getElementById('attr-depth').textContent = capitalize(result.depth);
+      document.getElementById('attr-contrast').textContent = result.depth === 'light' ? 'Low–Medium' : result.depth === 'deep' ? 'High' : 'Medium';
+
+      // Undertone marker (0=cool left, 1=warm right)
+      document.getElementById('undertone-marker').style.left = `${result.undertonePos * 100}%`;
+
+      renderSeason();
+    }
+
+    function renderSeason() {
+      const season = classifySeason(currentUndertone, currentDepth);
+      const data = SEASONS[season];
+
+      // Update undertone label
+      document.getElementById('attr-undertone').textContent = capitalize(currentUndertone);
+
+      // Season hero
+      const hero = document.getElementById('season-hero');
+      hero.innerHTML = `
+        <div class="season-banner" style="background:${data.bg};color:${data.textColor};">
+          <div class="season-emoji">${data.emoji}</div>
+          <div class="season-info">
+            <div class="season-label">Your color season</div>
+            <div class="season-name">${data.name}</div>
+            <div class="season-tagline">${data.tagline}</div>
+            <div class="season-badges">
+              ${data.badges.map(b => `<span class="badge">${b}</span>`).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Traits
+      document.getElementById('season-traits').innerHTML = data.traits.map(t => `
+        <div class="attr-row">
+          <span class="attr-label">${t.label}</span>
+          <span class="attr-value">${t.value}</span>
+        </div>
+      `).join('');
+
+      // Recommended palette
+      const ps = document.getElementById('palette-section');
+      const photoUrl = loadedPhotos.length > 0 ? loadedPhotos[0].url : null;
+      const colorsHtml = `
+        <h3>Your Recommended Palette</h3>
+        <div class="palette-desc">${data.palette.description}</div>
+        ${data.palette.groups.map(g => `
+          <div class="palette-group">
+            <div class="palette-group-label">${g.label}</div>
+            <div class="color-row">
+              ${g.colors.map(c => `
+                <div class="color-chip" title="Click to copy ${c.hex}" onclick="copyHex('${c.hex}')">
+                  <div class="chip-swatch" style="background:${c.hex};"></div>
+                  <div class="chip-label">${c.name}</div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+        <div class="palette-group" style="margin-top:20px;padding-top:20px;border-top:1px solid var(--border);">
+          <div class="palette-group-label">🥇 Best metals for you</div>
+          <div class="metal-row">
+            ${data.metals.map(m => `
+              <div class="metal-chip">
+                <div class="metal-dot" style="background:${m.hex};border:1px solid rgba(0,0,0,0.1);"></div>
+                ${m.name}
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      if (photoUrl) {
+        ps.innerHTML = `
+          <div class="palette-with-photo">
+            <div class="palette-photo-col">
+              <img src="${photoUrl}" alt="Your photo" />
+            </div>
+            <div class="palette-colors-col">${colorsHtml}</div>
+          </div>
+        `;
+      } else {
+        ps.innerHTML = colorsHtml;
+      }
+
+      // ── Visual comparison (draping) ──────────────────────────────────────
+      const cs = document.getElementById('compare-section');
+      if (photoUrl) {
+        cs.style.display = '';
+        const allGoodColors = data.palette.groups.flatMap(g => g.colors);
+        const initGood  = allGoodColors[0];
+        const initAvoid = data.avoid.colors[0];
+
+        cs.innerHTML = `
+          <h3>Visual Comparison</h3>
+          <div class="compare-desc">See how your face looks against flattering vs. unflattering colors. Click any swatch to preview it.</div>
+          <div class="compare-row">
+            <div class="compare-panel">
+              <div class="compare-bg" id="good-bg" style="background-color:${initGood.hex};">
+                <img src="${photoUrl}" alt="You in good colors" />
+              </div>
+              <div class="compare-footer">
+                <span class="compare-verdict good">✓ Flattering</span>
+                <div class="compare-color-dot" id="good-dot" style="background:${initGood.hex};"></div>
+                <span class="compare-color-name" id="good-name">${initGood.name}</span>
+              </div>
+              <div class="compare-chips-label">Click a color to preview:</div>
+              <div class="compare-chips" id="good-chips">
+                ${allGoodColors.map((c, i) => `
+                  <div class="compare-chip ${i === 0 ? 'active' : ''}"
+                    style="background:${c.hex};"
+                    title="${c.name}"
+                    onclick="previewColor('good','${c.hex}','${c.name}',this)"></div>
+                `).join('')}
+              </div>
+            </div>
+            <div class="compare-panel">
+              <div class="compare-bg" id="avoid-bg" style="background-color:${initAvoid.hex};">
+                <img src="${photoUrl}" alt="You in avoid colors" />
+              </div>
+              <div class="compare-footer">
+                <span class="compare-verdict avoid">✗ Avoid</span>
+                <div class="compare-color-dot" id="avoid-dot" style="background:${initAvoid.hex};"></div>
+                <span class="compare-color-name" id="avoid-name">${initAvoid.name}</span>
+              </div>
+              <div class="compare-chips-label">Click a color to preview:</div>
+              <div class="compare-chips" id="avoid-chips">
+                ${data.avoid.colors.map((c, i) => `
+                  <div class="compare-chip ${i === 0 ? 'active' : ''}"
+                    style="background:${c.hex};"
+                    title="${c.name}"
+                    onclick="previewColor('avoid','${c.hex}','${c.name}',this)"></div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      } else {
+        cs.style.display = 'none';
+      }
+
+      // Avoid
+      const av = document.getElementById('avoid-section');
+      av.innerHTML = `
+        <h3>Colors to Avoid Near Your Face</h3>
+        <div class="palette-desc">${data.avoid.description}</div>
+        <div class="color-row">
+          ${data.avoid.colors.map(c => `
+            <div class="color-chip avoid-chip">
+              <div class="chip-swatch" style="background:${c.hex};opacity:0.55;"></div>
+              <div class="chip-label" style="color:#b09090;">${c.name}</div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      // Tips — gender-tailored
+      const tips = data.tips[currentGender] ?? data.tips.neutral;
+      const genderLabel = { feminine: 'Feminine', masculine: 'Masculine', neutral: 'Neutral' }[currentGender];
+      const tc = document.getElementById('tips-card');
+      tc.innerHTML = `
+        <h3>Styling Tips for ${data.name} · ${genderLabel}</h3>
+        ${tips.map(t => `
+          <div class="style-tip">
+            <span class="tip-icon">${t.icon}</span>
+            <span>${t.text}</span>
+          </div>
+        `).join('')}
+      `;
+    }
+
+    function classifySeason(undertone, depth) {
+      if (undertone === 'warm') return depth === 'deep' || depth === 'medium' ? 'autumn' : 'spring';
+      if (undertone === 'cool') return depth === 'light' || depth === 'medium' ? 'summer' : 'winter';
+      // neutral: use depth as tiebreaker
+      return depth === 'light' ? 'spring' : depth === 'deep' ? 'winter' : 'summer';
+    }
+
+    function reset() {
+      loadedPhotos.forEach(p => URL.revokeObjectURL(p.url));
+      loadedPhotos = [];
+      resultsSection.style.display = 'none';
+      uploadSection.style.display = 'block';
+      fileInput.value = '';
+      document.getElementById('add-more-input').value = '';
+      document.getElementById('photo-grid').innerHTML = '';
+      currentUndertone = detectedUndertone = null;
+      currentDepth = detectedDepth = null;
+      currentGender = 'neutral';
+      document.querySelectorAll('.adjust-btn').forEach(b => b.classList.remove('active'));
+    }
+
+    // ── Utilities ─────────────────────────────────────────────────────────────
+    function rgbToHex([r, g, b]) {
+      return '#' + [r, g, b].map(v => v.toString(16).padStart(2,'0').toUpperCase()).join('');
+    }
+
+    function rgbToHsl([r, g, b]) {
+      r /= 255; g /= 255; b /= 255;
+      const max = Math.max(r,g,b), min = Math.min(r,g,b);
+      let h, s, l = (max+min)/2;
+      if (max === min) { h = s = 0; }
+      else {
+        const d = max - min;
+        s = l > 0.5 ? d/(2-max-min) : d/(max+min);
+        switch(max) {
+          case r: h = ((g-b)/d + (g<b?6:0))/6; break;
+          case g: h = ((b-r)/d + 2)/6; break;
+          case b: h = ((r-g)/d + 4)/6; break;
+        }
+      }
+      return [Math.round(h*360), Math.round(s*100), Math.round(l*100)];
+    }
+
+    function luminance([r,g,b]) {
+      const lin = v => { v/=255; return v<=0.04045 ? v/12.92 : ((v+0.055)/1.055)**2.4; };
+      return 0.2126*lin(r) + 0.7152*lin(g) + 0.0722*lin(b);
+    }
+
+    function capitalize(s) { return s ? s[0].toUpperCase() + s.slice(1) : ''; }
+
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 2200);
+    }
+
+    window.copyHex = (hex) => {
+      navigator.clipboard.writeText(hex).then(() => showToast(`Copied ${hex}`));
+    };
+
+    window.previewColor = (panel, hex, name, chip) => {
+      document.getElementById(`${panel}-bg`).style.backgroundColor = hex;
+      document.getElementById(`${panel}-dot`).style.background = hex;
+      document.getElementById(`${panel}-name`).textContent = name;
+      document.querySelectorAll(`#${panel}-chips .compare-chip`).forEach(c => c.classList.remove('active'));
+      chip.classList.add('active');
+    };
+  })();
+  </script>
+</body>
+</html>
