@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Personal Color Analysis</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎨</text></svg>">
   <script defer src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -923,6 +924,11 @@
 
     <!-- Results -->
     <div id="results-section">
+      <!-- Season hero banner -->
+      <div class="season-hero" id="season-hero">
+        <!-- filled by JS -->
+      </div>
+
       <!-- Preview + season hero -->
       <div class="preview-card">
         <div class="preview-inner">
@@ -969,14 +975,21 @@
                 <button class="adjust-btn" data-depth="deep">Deep</button>
               </div>
             </div>
-            <button class="reset-btn" id="reset-btn">↩ New photo</button>
+            <div style="margin-bottom:10px;">
+              <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;">Override color season directly:</div>
+              <div class="manual-adjust">
+                <button class="adjust-btn" data-season="spring">🌸 Spring</button>
+                <button class="adjust-btn" data-season="summer">🌊 Summer</button>
+                <button class="adjust-btn" data-season="autumn">🍂 Autumn</button>
+                <button class="adjust-btn" data-season="winter">❄️ Winter</button>
+              </div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <button class="reset-btn" id="reset-btn">↩ New photo</button>
+              <button class="reset-btn" id="debug-btn">🔬 Debug</button>
+            </div>
           </div>
         </div>
-      </div>
-
-      <!-- Season hero banner -->
-      <div class="season-hero" id="season-hero">
-        <!-- filled by JS -->
       </div>
 
       <!-- Skin analysis row -->
@@ -1426,6 +1439,8 @@
     let detectedUndertone = null;
     let detectedDepth = null;
     let currentGender = 'neutral';       // 'feminine' | 'masculine' | 'neutral'
+    let currentSeasonOverride = null;    // null = auto-computed | 'spring' | 'summer' | 'autumn' | 'winter'
+    let testingMode = false;
     let faceModelsReady = false;
     let faceModelsLoading = false;
 
@@ -1492,12 +1507,21 @@
     });
     document.getElementById('reset-btn').addEventListener('click', reset);
 
+    document.getElementById('debug-btn').addEventListener('click', () => {
+      testingMode = !testingMode;
+      document.getElementById('debug-btn').classList.toggle('active', testingMode);
+      renderPhotoGrid();
+    });
+
     // Manual overrides
     document.querySelectorAll('.adjust-btn[data-undertone]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.adjust-btn[data-undertone]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentUndertone = btn.dataset.undertone;
+        // Clear season override — back to computed mode
+        currentSeasonOverride = null;
+        document.querySelectorAll('.adjust-btn[data-season]').forEach(b => b.classList.remove('active'));
         renderSeason();
       });
     });
@@ -1507,6 +1531,21 @@
         document.querySelectorAll('.adjust-btn[data-depth]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentDepth = btn.dataset.depth;
+        // Clear season override — back to computed mode
+        currentSeasonOverride = null;
+        document.querySelectorAll('.adjust-btn[data-season]').forEach(b => b.classList.remove('active'));
+        renderSeason();
+      });
+    });
+
+    document.querySelectorAll('.adjust-btn[data-season]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.adjust-btn[data-season]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentSeasonOverride = btn.dataset.season;
+        // Clear undertone/depth overrides — season takes full control
+        document.querySelectorAll('.adjust-btn[data-undertone]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.adjust-btn[data-depth]').forEach(b => b.classList.remove('active'));
         renderSeason();
       });
     });
@@ -1541,15 +1580,16 @@
 
       Promise.all(promises).then(photos => {
         loadedPhotos = [...loadedPhotos, ...photos];
-        requestAnimationFrame(() => setTimeout(() => {
-          const result = analyzeImages(loadedPhotos.map(p => p.img));
+        requestAnimationFrame(() => setTimeout(async () => {
+          const result = await analyzeImages(loadedPhotos.map(p => p.img));
           detectedUndertone = currentUndertone = result.undertone;
           detectedDepth     = currentDepth     = result.depth;
+          result.bboxes.forEach((bbox, i) => { loadedPhotos[i].bbox = bbox; });
           renderPhotoGrid();
           renderAnalysis(result);
           loading.classList.remove('visible');
           resultsSection.style.display = 'block';
-          // Run gender detection in the background against the first photo
+          // Gender detection already ran face detection above; run with age+gender for the badge
           runGenderDetection(loadedPhotos[0].img);
         }, 80));
       });
@@ -1561,11 +1601,55 @@
       loadedPhotos.forEach((photo, idx) => {
         const thumb = document.createElement('div');
         thumb.className = 'photo-thumb';
-        thumb.innerHTML = `
-          <img src="${photo.url}" alt="Photo ${idx + 1}" />
-          <button class="remove-photo" title="Remove photo" data-idx="${idx}">✕</button>
-        `;
-        thumb.querySelector('.remove-photo').addEventListener('click', () => removePhoto(idx));
+
+        if (testingMode) {
+          const tc = document.createElement('canvas');
+          tc.width = 120;
+          tc.height = 120;
+          tc.style.width = '100%';
+          tc.style.height = '100%';
+          tc.style.display = 'block';
+          const tctx = tc.getContext('2d');
+          const W = tc.width, H = tc.height;
+          tctx.drawImage(photo.img, 0, 0, W, H);
+
+          if (photo.bbox) {
+            const nw = photo.img.naturalWidth || photo.img.width;
+            const nh = photo.img.naturalHeight || photo.img.height;
+            const sx = W / nw, sy = H / nh;
+            const { x, y, width: bw, height: bh } = photo.bbox;
+            // Full detection box — red
+            tctx.strokeStyle = 'rgba(255,60,60,0.9)';
+            tctx.lineWidth = 1.5;
+            tctx.strokeRect(x * sx, y * sy, bw * sx, bh * sy);
+            // Sampling region (inset 10%) — green
+            const pad = 0.1;
+            tctx.strokeStyle = 'rgba(60,220,60,0.9)';
+            tctx.strokeRect((x + bw * pad) * sx, (y + bh * pad) * sy,
+                            bw * (1 - 2 * pad) * sx, bh * (1 - 2 * pad) * sy);
+          } else {
+            // No face found — show fallback crop region in yellow
+            const cx = W * 0.3, cy = H * 0.2, cw = W * 0.4, ch = H * 0.6;
+            tctx.strokeStyle = 'rgba(255,200,0,0.9)';
+            tctx.lineWidth = 1.5;
+            tctx.setLineDash([3, 3]);
+            tctx.strokeRect(cx, cy, cw, ch);
+            tctx.setLineDash([]);
+          }
+          thumb.appendChild(tc);
+        } else {
+          const img = document.createElement('img');
+          img.src = photo.url;
+          img.alt = `Photo ${idx + 1}`;
+          thumb.appendChild(img);
+        }
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'remove-photo';
+        removeBtn.title = 'Remove photo';
+        removeBtn.textContent = '✕';
+        removeBtn.addEventListener('click', () => removePhoto(idx));
+        thumb.appendChild(removeBtn);
         grid.appendChild(thumb);
       });
       const n = loadedPhotos.length;
@@ -1573,14 +1657,16 @@
         `${n} photo${n !== 1 ? 's' : ''} analyzed`;
     }
 
-    function removePhoto(idx) {
+    async function removePhoto(idx) {
       URL.revokeObjectURL(loadedPhotos[idx].url);
       loadedPhotos.splice(idx, 1);
       if (loadedPhotos.length === 0) { reset(); return; }
       renderPhotoGrid();
-      const result = analyzeImages(loadedPhotos.map(p => p.img));
+      const result = await analyzeImages(loadedPhotos.map(p => p.img));
       detectedUndertone = currentUndertone = result.undertone;
       detectedDepth     = currentDepth     = result.depth;
+      currentSeasonOverride = null;
+      result.bboxes.forEach((bbox, i) => { loadedPhotos[i].bbox = bbox; });
       document.querySelectorAll('.adjust-btn').forEach(b => b.classList.remove('active'));
       renderAnalysis(result);
     }
@@ -1621,14 +1707,29 @@
     }
 
     // ── Image analysis ────────────────────────────────────────────────────────
-    function sampleImagePixels(img) {
+    function sampleImagePixels(img, faceBbox) {
       const SIZE = 300;
       canvas.width = SIZE;
       canvas.height = SIZE;
       ctx.drawImage(img, 0, 0, SIZE, SIZE);
 
-      const cx = SIZE * 0.3, cy = SIZE * 0.2;
-      const cw = SIZE * 0.4, ch = SIZE * 0.6;
+      let cx, cy, cw, ch;
+      if (faceBbox) {
+        // Scale face bbox from image native coords to canvas coords
+        const naturalW = img.naturalWidth || img.width;
+        const naturalH = img.naturalHeight || img.height;
+        const sx = SIZE / naturalW, sy = SIZE / naturalH;
+        // Inset 10% on each side to avoid hair/ears/background at box edges
+        const pad = 0.1;
+        cx = Math.max(0, Math.round((faceBbox.x + faceBbox.width  * pad) * sx));
+        cy = Math.max(0, Math.round((faceBbox.y + faceBbox.height * pad) * sy));
+        cw = Math.min(SIZE - cx, Math.round(faceBbox.width  * (1 - 2 * pad) * sx));
+        ch = Math.min(SIZE - cy, Math.round(faceBbox.height * (1 - 2 * pad) * sy));
+      } else {
+        // Fallback: fixed center crop
+        cx = SIZE * 0.3; cy = SIZE * 0.2;
+        cw = SIZE * 0.4; ch = SIZE * 0.6;
+      }
       const data = ctx.getImageData(cx, cy, cw, ch).data;
 
       const skinPixels = [];
@@ -1642,9 +1743,21 @@
       return skinPixels.length > 80 ? skinPixels : allPixels;
     }
 
-    function analyzeImages(imgs) {
-      // Pool skin pixels from every image for a combined reading
-      const allPixels = imgs.flatMap(img => sampleImagePixels(img));
+    async function analyzeImages(imgs) {
+      // Ensure face models are ready so we can detect face regions
+      await ensureFaceModels();
+
+      // Detect face bounding boxes in parallel (one per image)
+      const bboxes = await Promise.all(imgs.map(async img => {
+        if (!faceModelsReady) return null;
+        try {
+          const det = await faceapi.detectSingleFace(img, new faceapi.TinyFaceDetectorOptions());
+          return det ? det.box : null;
+        } catch (e) { return null; }
+      }));
+
+      // Pool skin pixels from face regions (or center crop if no face found)
+      const allPixels = imgs.flatMap((img, i) => sampleImagePixels(img, bboxes[i]));
 
       // Average color across all samples
       let rSum = 0, gSum = 0, bSum = 0;
@@ -1654,27 +1767,31 @@
       const avgRgb = [Math.round(avgR), Math.round(avgG), Math.round(avgB)];
 
       // Depth from luminance
+      // Typical skin luminance ranges: fair ~0.35–0.65, medium ~0.15–0.35, deep ~0.04–0.15
       const lum = luminance(avgRgb);
-      const depth = lum > 0.55 ? 'light' : lum > 0.2 ? 'medium' : 'deep';
+      const depth = lum > 0.38 ? 'light' : lum > 0.12 ? 'medium' : 'deep';
 
       // Undertone from warm/cool balance
+      // warmScore: overall warm bias (R and G both higher than B)
+      // gMinusB: the "yellow component" — wide G-B gap = yellow/warm, narrow G-B = pink/cool
       const warmScore = (avgR - avgB) + (avgG - avgB) * 0.5;
-      const pinkScore = (avgR - avgG);
+      const gMinusB   = avgG - avgB;
 
       let undertone;
-      if (warmScore > 30 && pinkScore < 25) {
+      if (warmScore > 45 && gMinusB > 25) {
+        // Significant yellow component → warm
         undertone = 'warm';
-      } else if (warmScore < 10 || (avgB > avgG && avgR - avgB < 30)) {
-        undertone = 'cool';
-      } else if (pinkScore > 30 && warmScore < 35) {
+      } else if (warmScore < 15 || gMinusB < 10) {
+        // G and B nearly equal (pink) or overall cool bias → cool
         undertone = 'cool';
       } else {
+        // G-B moderate, warmScore moderate → neutral
         undertone = 'neutral';
       }
 
       const undertonePos = Math.max(0, Math.min(1, (warmScore + 40) / 100));
 
-      return { avgRgb, depth, undertone, undertonePos, photoCount: imgs.length };
+      return { avgRgb, depth, undertone, undertonePos, photoCount: imgs.length, bboxes };
     }
 
     function isSkinPixel(r, g, b) {
@@ -1704,7 +1821,7 @@
     }
 
     function renderSeason() {
-      const season = classifySeason(currentUndertone, currentDepth);
+      const season = currentSeasonOverride || classifySeason(currentUndertone, currentDepth);
       const data = SEASONS[season];
 
       // Update undertone label
@@ -1867,9 +1984,10 @@
 
     function classifySeason(undertone, depth) {
       if (undertone === 'warm') return depth === 'deep' || depth === 'medium' ? 'autumn' : 'spring';
-      if (undertone === 'cool') return depth === 'light' || depth === 'medium' ? 'summer' : 'winter';
-      // neutral: use depth as tiebreaker
-      return depth === 'light' ? 'spring' : depth === 'deep' ? 'winter' : 'summer';
+      // Cool: Summer is soft/light; Winter is clear/medium-to-deep
+      if (undertone === 'cool') return depth === 'light' ? 'summer' : 'winter';
+      // Neutral: use depth as tiebreaker
+      return depth === 'light' ? 'spring' : depth === 'deep' ? 'winter' : 'autumn';
     }
 
     function reset() {
@@ -1883,6 +2001,9 @@
       currentUndertone = detectedUndertone = null;
       currentDepth = detectedDepth = null;
       currentGender = 'neutral';
+      currentSeasonOverride = null;
+      testingMode = false;
+      document.getElementById('debug-btn').classList.remove('active');
       document.querySelectorAll('.adjust-btn').forEach(b => b.classList.remove('active'));
     }
 
