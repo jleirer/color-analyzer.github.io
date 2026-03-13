@@ -336,6 +336,34 @@
       margin-top: 4px;
     }
 
+    .chroma-bar {
+      height: 8px;
+      border-radius: 4px;
+      margin-top: 10px;
+      background: linear-gradient(to right, #b0b0bc, #d4c060, #ff7030);
+      position: relative;
+    }
+
+    .chroma-marker {
+      width: 14px;
+      height: 14px;
+      background: white;
+      border: 2px solid #333;
+      border-radius: 50%;
+      position: absolute;
+      top: -3px;
+      transform: translateX(-50%);
+      box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+    }
+
+    .chroma-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.68rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
     /* Preview card */
     .preview-card {
       background: var(--surface);
@@ -976,6 +1004,14 @@
               </div>
             </div>
             <div style="margin-bottom:10px;">
+              <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;">Manually override chroma:</div>
+              <div class="manual-adjust">
+                <button class="adjust-btn" data-chroma="clear">Clear</button>
+                <button class="adjust-btn" data-chroma="soft">Soft</button>
+                <button class="adjust-btn" data-chroma="neutral">Neutral</button>
+              </div>
+            </div>
+            <div style="margin-bottom:10px;">
               <div style="font-size:0.78rem;color:var(--muted);margin-bottom:6px;">Override color season directly:</div>
               <div class="manual-adjust">
                 <button class="adjust-btn" data-season="spring">🌸 Spring</button>
@@ -1017,12 +1053,16 @@
               <span class="attr-label">Contrast level</span>
               <span class="attr-value" id="attr-contrast">—</span>
             </div>
+            <div class="attr-row">
+              <span class="attr-label">Chroma</span>
+              <span class="attr-value" id="attr-chroma">—</span>
+            </div>
           </div>
         </div>
 
         <div class="info-card">
           <h3>Undertone Spectrum</h3>
-          <div style="margin-bottom:16px;">
+          <div style="margin-bottom:12px;">
             <div class="undertone-bar">
               <div class="undertone-marker" id="undertone-marker"></div>
             </div>
@@ -1030,6 +1070,15 @@
               <span>Cool</span>
               <span>Neutral</span>
               <span>Warm</span>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            <div class="chroma-bar">
+              <div class="chroma-marker" id="chroma-marker"></div>
+            </div>
+            <div class="chroma-labels">
+              <span>Soft / Muted</span>
+              <span>Clear / Vivid</span>
             </div>
           </div>
           <div class="attr-list" id="season-traits">
@@ -1439,6 +1488,8 @@
     let detectedUndertone = null;
     let detectedDepth = null;
     let currentGender = 'neutral';       // 'feminine' | 'masculine' | 'neutral'
+    let currentChroma = null;            // 'clear' | 'soft' | 'neutral'
+    let detectedChroma = null;
     let currentSeasonOverride = null;    // null = auto-computed | 'spring' | 'summer' | 'autumn' | 'winter'
     let testingMode = false;
     let faceModelsReady = false;
@@ -1538,14 +1589,26 @@
       });
     });
 
+    document.querySelectorAll('.adjust-btn[data-chroma]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.adjust-btn[data-chroma]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        currentChroma = btn.dataset.chroma;
+        currentSeasonOverride = null;
+        document.querySelectorAll('.adjust-btn[data-season]').forEach(b => b.classList.remove('active'));
+        renderSeason();
+      });
+    });
+
     document.querySelectorAll('.adjust-btn[data-season]').forEach(btn => {
       btn.addEventListener('click', () => {
         document.querySelectorAll('.adjust-btn[data-season]').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         currentSeasonOverride = btn.dataset.season;
-        // Clear undertone/depth overrides — season takes full control
+        // Clear undertone/depth/chroma overrides — season takes full control
         document.querySelectorAll('.adjust-btn[data-undertone]').forEach(b => b.classList.remove('active'));
         document.querySelectorAll('.adjust-btn[data-depth]').forEach(b => b.classList.remove('active'));
+        document.querySelectorAll('.adjust-btn[data-chroma]').forEach(b => b.classList.remove('active'));
         renderSeason();
       });
     });
@@ -1584,6 +1647,7 @@
           const result = await analyzeImages(loadedPhotos.map(p => p.img));
           detectedUndertone = currentUndertone = result.undertone;
           detectedDepth     = currentDepth     = result.depth;
+          detectedChroma    = currentChroma    = result.chroma;
           result.bboxes.forEach((bbox, i) => { loadedPhotos[i].bbox = bbox; });
           renderPhotoGrid();
           renderAnalysis(result);
@@ -1665,6 +1729,7 @@
       const result = await analyzeImages(loadedPhotos.map(p => p.img));
       detectedUndertone = currentUndertone = result.undertone;
       detectedDepth     = currentDepth     = result.depth;
+      detectedChroma    = currentChroma    = result.chroma;
       currentSeasonOverride = null;
       result.bboxes.forEach((bbox, i) => { loadedPhotos[i].bbox = bbox; });
       document.querySelectorAll('.adjust-btn').forEach(b => b.classList.remove('active'));
@@ -1791,7 +1856,14 @@
 
       const undertonePos = Math.max(0, Math.min(1, (warmScore + 40) / 100));
 
-      return { avgRgb, depth, undertone, undertonePos, photoCount: imgs.length, bboxes };
+      // Chroma from average per-pixel color spread (max - min)
+      // High spread = vivid/saturated (clear); low spread = grey/muted (soft)
+      const avgSpread = allPixels.reduce((sum, [r,g,b]) =>
+        sum + (Math.max(r,g,b) - Math.min(r,g,b)), 0) / (allPixels.length * 255);
+      const chroma = avgSpread > 0.25 ? 'clear' : avgSpread < 0.15 ? 'soft' : 'neutral';
+      const chromaPos = Math.max(0, Math.min(1, (avgSpread - 0.07) / 0.26)); // 0=soft, 1=clear
+
+      return { avgRgb, depth, undertone, undertonePos, chroma, chromaPos, photoCount: imgs.length, bboxes };
     }
 
     function isSkinPixel(r, g, b) {
@@ -1813,15 +1885,18 @@
       document.getElementById('skin-depth').textContent = `rgb(${result.avgRgb.join(', ')}) · combined from ${result.photoCount} photo${result.photoCount !== 1 ? 's' : ''}`;
       document.getElementById('attr-depth').textContent = capitalize(result.depth);
       document.getElementById('attr-contrast').textContent = result.depth === 'light' ? 'Low–Medium' : result.depth === 'deep' ? 'High' : 'Medium';
+      document.getElementById('attr-chroma').textContent = result.chroma === 'clear' ? 'Clear / Vivid' : result.chroma === 'soft' ? 'Soft / Muted' : 'Neutral';
 
       // Undertone marker (0=cool left, 1=warm right)
       document.getElementById('undertone-marker').style.left = `${result.undertonePos * 100}%`;
+      // Chroma marker (0=soft left, 1=clear right)
+      document.getElementById('chroma-marker').style.left = `${result.chromaPos * 100}%`;
 
       renderSeason();
     }
 
     function renderSeason() {
-      const season = currentSeasonOverride || classifySeason(currentUndertone, currentDepth);
+      const season = currentSeasonOverride || classifySeason(currentUndertone, currentDepth, currentChroma);
       const data = SEASONS[season];
 
       // Update undertone label
@@ -1982,11 +2057,19 @@
       `;
     }
 
-    function classifySeason(undertone, depth) {
-      if (undertone === 'warm') return depth === 'deep' || depth === 'medium' ? 'autumn' : 'spring';
-      // Cool: Summer is soft/light; Winter is clear/medium-to-deep
+    function classifySeason(undertone, depth, chroma) {
+      // When undertone and chroma both point clearly, they uniquely determine the season:
+      // Spring=warm+clear, Autumn=warm+soft, Winter=cool+clear, Summer=cool+soft
+      if (undertone === 'warm' && chroma === 'clear') return 'spring';
+      if (undertone === 'warm' && chroma === 'soft')  return 'autumn';
+      if (undertone === 'cool' && chroma === 'clear') return 'winter';
+      if (undertone === 'cool' && chroma === 'soft')  return 'summer';
+      // One axis is neutral — use the other + depth as tiebreaker
+      if (undertone === 'warm') return depth === 'light' ? 'spring' : 'autumn';
       if (undertone === 'cool') return depth === 'light' ? 'summer' : 'winter';
-      // Neutral: use depth as tiebreaker
+      if (chroma === 'clear')   return depth === 'deep'  ? 'winter' : 'spring';
+      if (chroma === 'soft')    return depth === 'light' ? 'summer' : 'autumn';
+      // All neutral — depth tiebreaker
       return depth === 'light' ? 'spring' : depth === 'deep' ? 'winter' : 'autumn';
     }
 
@@ -2000,6 +2083,7 @@
       document.getElementById('photo-grid').innerHTML = '';
       currentUndertone = detectedUndertone = null;
       currentDepth = detectedDepth = null;
+      currentChroma = detectedChroma = null;
       currentGender = 'neutral';
       currentSeasonOverride = null;
       testingMode = false;
