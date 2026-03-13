@@ -1448,7 +1448,7 @@
     async function ensureFaceModels() {
       if (faceModelsReady || faceModelsLoading) return;
       faceModelsLoading = true;
-      const MODEL_URL = 'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
+      const MODEL_URL = './weights';
       try {
         await Promise.all([
           faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
